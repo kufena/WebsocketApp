@@ -6,7 +6,7 @@ This started out as an implementation of the code from this video
 
 which is really simple stuff, but seems to work ok.
 
-I'm not quite sure how correct it is - it is the first time I've investigate web sockets.
+I'm not quite sure how correct it is - it is the first time I've investigated web sockets.
 However, I have noted that there are two packages.  Firstly, the one we're using here
 
     System.Net.WebSockets

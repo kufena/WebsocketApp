@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System;
 using System.Collections.Generic;
+using System.Collections.Concurrent;
 using System.Linq;
 using System.Net;
 using System.Net.WebSockets;
@@ -24,6 +25,8 @@ namespace Server
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
         {
+            websocks = new ConcurrentBag<WebSocket>();
+
             if (env.IsDevelopment())
             {
                 app.UseDeveloperExceptionPage();
@@ -37,10 +40,13 @@ namespace Server
             {
                 if (context.Request.Path == "/send")
                 {
+                    Console.WriteLine("NEW NEW NEW NEW NEW NEW NEW NEW NEW NEW NEW NEW NEW NEW NEW CONNECTION.");
+
                     if (context.WebSockets.IsWebSocketRequest)
                     {
                         using (WebSocket webSocket = await context.WebSockets.AcceptWebSocketAsync())
                         {
+                            websocks.Add(webSocket);
                             await Send(context, webSocket);
                         }
                     }
@@ -52,8 +58,14 @@ namespace Server
             });
         }
 
+        private static int counter = 0;
+        private static ConcurrentBag<WebSocket> websocks;
+
         private async Task Send(HttpContext context, WebSocket webSocket)
         {
+            int n = counter++;
+            Console.WriteLine($"We're in SEND SEND SEND number {n}");
+
             var buffer = new byte[1024 * 4];
             WebSocketReceiveResult result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer),
                 System.Threading.CancellationToken.None);
@@ -63,8 +75,20 @@ namespace Server
                 {
                     string msg = Encoding.UTF8.GetString(new ArraySegment<byte>(buffer,0,result.Count));
                     Console.WriteLine($"client says {msg}");
-                    await webSocket.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes($"Server says Thanks. {DateTime.Now}")),
-                        result.MessageType, result.EndOfMessage, System.Threading.CancellationToken.None) ;
+                    string resp = $"{DateTime.Now}:: " + msg;
+                    foreach (var wb in websocks)
+                    {
+                        try
+                        {
+                            if (!wb.CloseStatus.HasValue)
+                                await wb.SendAsync(new ArraySegment<byte>(Encoding.UTF8.GetBytes(resp)),
+                                result.MessageType, result.EndOfMessage, System.Threading.CancellationToken.None);
+                        }
+                        catch (Exception ex)
+                        {
+                            ; // do something here - we want to remove it.  probably need a key.
+                        }
+                    }
                     result = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), System.Threading.CancellationToken.None);
                     Console.WriteLine(result);
                 }
